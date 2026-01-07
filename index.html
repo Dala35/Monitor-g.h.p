@@ -156,7 +156,7 @@
     <div class="logo-box">G</div>
     <div>
       <div style="font-weight: 800; font-size: 14px; letter-spacing: 1px;">G.H.P. MONITOR</div>
-      <div style="font-size: 9px; color: var(--text-muted);">OPEN DATA NETWORK</div>
+      <div style="font-size: 9px; color: var(--text-muted);">LOCAL DATA STORAGE</div>
     </div>
   </div>
   <div class="status-monitor">
@@ -178,7 +178,7 @@
   <section style="display: flex; flex-direction: column; gap: 15px;">
     <div class="card">
       <div id="banner"></div>
-      <div class="card-header">Registo de Dados</div>
+      <div class="card-header">Registo de Dados (No Dispositivo)</div>
       <form id="submissionForm">
         <input type="email" id="email" placeholder="Email do Agente" required>
         <select id="tipo" required>
@@ -188,56 +188,47 @@
           <option value="ESTRATEGIA">Estratégia de Mercado</option>
         </select>
         <textarea id="desc" rows="4" placeholder="Descrição técnica ou notas da oportunidade..." required></textarea>
-        <button type="submit" id="submitBtn" class="btn btn-primary">Transmitir para Nuvem</button>
+        <button type="submit" id="submitBtn" class="btn btn-primary">Guardar no Dispositivo</button>
       </form>
     </div>
   </section>
 
   <aside class="card">
-    <div class="card-header">Fluxo Global (Cloud)</div>
+    <div class="card-header">Fluxo Local (Offline-Ready)</div>
     <div id="logList">
-      <p style="font-size: 11px; color: var(--text-muted);">Aguardando conexão segura...</p>
+      <p style="font-size: 11px; color: var(--text-muted);">A carregar registos locais...</p>
     </div>
     <div style="font-size: 9px; color: var(--text-muted); padding-top: 10px; border-top: 1px solid #1e293b; margin-top: auto;">
-      ID NÓ: <span id="nodeId">OFFLINE</span>
+      ID NÓ LOCAL: <span id="nodeId">GERANDO...</span>
     </div>
   </aside>
 
 </main>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  // --- SISTEMA DE ARMAZENAMENTO LOCAL (IndexedDB) ---
+  const DB_NAME = 'GHP_Local_DB';
+  const STORE_NAME = 'local_logs';
+  let db;
 
-  // --- CONFIGURAÇÃO DE AMBIENTE (RESILIENTE) ---
-  
-  // Se estiver fora do Canvas, estas variáveis podem ser indefinidas.
-  // Pode substituir o objeto vazio abaixo pelas suas credenciais reais do Firebase se for hospedar permanentemente.
-  const getFirebaseConfig = () => {
-    try {
-      return typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-        apiKey: "",
-        authDomain: "",
-        projectId: "",
-        storageBucket: "",
-        messagingSenderId: "",
-        appId: ""
+  function initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        }
       };
-    } catch (e) {
-      console.warn("Configuração Firebase não encontrada ou inválida.");
-      return null;
-    }
-  };
 
-  const config = getFirebaseConfig();
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'ghp-monitor-standalone';
-  
-  let app, auth, db;
-  if (config && config.apiKey) {
-    app = initializeApp(config);
-    auth = getAuth(app);
-    db = getFirestore(app);
+      request.onsuccess = (event) => {
+        db = event.target.result;
+        resolve(db);
+      };
+
+      request.onerror = (event) => reject(event.target.error);
+    });
   }
 
   // --- UI CONTROLLERS ---
@@ -282,46 +273,30 @@
     }
   }
 
-  // --- FIREBASE SYNC ---
-  async function connectNode() {
-    if (!auth) {
-      document.getElementById('logList').innerHTML = '<p style="font-size:11px; color:var(--text-muted);">Firebase não configurado para ambiente externo.</p>';
-      return;
-    }
-
-    try {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    } catch (err) {
-      notify("Erro de conexão com o banco de dados", "error");
-    }
-  }
-
-  if (auth) {
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        document.getElementById('nodeId').textContent = user.uid.substring(0, 8).toUpperCase();
-        syncCloudLogs();
-      }
+  // --- LOGIC: SAVE & RENDER ---
+  async function saveLog(logData) {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.add(logData);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
     });
   }
 
-  function syncCloudLogs() {
-    if (!db) return;
-    const path = collection(db, 'artifacts', appId, 'public', 'data', 'ghp_logs');
-    
-    onSnapshot(path, (snap) => {
-      const list = document.getElementById('logList');
-      const data = [];
-      snap.forEach(d => data.push(d.data()));
-      
+  async function renderLogs() {
+    const list = document.getElementById('logList');
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const data = request.result;
       data.sort((a, b) => new Date(b.ts) - new Date(a.ts));
 
-      list.innerHTML = data.length ? '' : '<p style="font-size:11px;">Nenhum dado na rede.</p>';
-      data.slice(0, 15).forEach(log => {
+      list.innerHTML = data.length ? '' : '<p style="font-size:11px;">Nenhum dado guardado no dispositivo.</p>';
+      data.slice(0, 20).forEach(log => {
         const div = document.createElement('div');
         div.className = 'log-entry';
         div.innerHTML = `
@@ -331,39 +306,45 @@
         `;
         list.appendChild(div);
       });
-    }, (err) => {
-      console.error(err);
-      document.getElementById('logList').innerHTML = '<p style="color:var(--danger);">Permissão negada ou base inexistente.</p>';
-    });
+    };
   }
 
+  // --- EVENT HANDLERS ---
   document.getElementById('submissionForm').onsubmit = async (e) => {
     e.preventDefault();
-    if (!auth || !auth.currentUser) return notify("Sistema offline ou sem Firebase", "error");
-
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
+
+    const logData = {
+      id: crypto.randomUUID(),
+      email: document.getElementById('email').value,
+      tipo: document.getElementById('tipo').value,
+      desc: document.getElementById('desc').value,
+      ts: new Date().toISOString()
+    };
+
     try {
-      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'ghp_logs', crypto.randomUUID());
-      await setDoc(docRef, {
-        email: document.getElementById('email').value,
-        tipo: document.getElementById('tipo').value,
-        desc: document.getElementById('desc').value,
-        ts: new Date().toISOString(),
-        agent: auth.currentUser.uid
-      });
-      notify("Dados propagados com sucesso!");
+      await saveLog(logData);
+      notify("Dados guardados localmente com sucesso!");
       e.target.reset();
+      renderLogs();
     } catch (err) {
-      notify("Falha na propagação", "error");
+      notify("Erro ao guardar no dispositivo", "error");
     } finally {
       btn.disabled = false;
     }
   };
 
   // --- INITIALIZE ---
-  window.onload = () => {
-    connectNode();
+  window.onload = async () => {
+    try {
+      await initDB();
+      renderLogs();
+      document.getElementById('nodeId').textContent = "LOCAL-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+    } catch (e) {
+      console.error("IndexedDB falhou", e);
+    }
+
     loadExternalRadar();
     document.getElementById('refreshBtn').onclick = loadExternalRadar;
     setInterval(() => {
