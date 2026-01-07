@@ -210,16 +210,40 @@
   import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  // Configurações extraídas do ambiente
-  const firebaseConfig = JSON.parse(__firebase_config);
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'ghp-monitor-default';
+  // --- CONFIGURAÇÃO DE AMBIENTE (RESILIENTE) ---
+  
+  // Se estiver fora do Canvas, estas variáveis podem ser indefinidas.
+  // Pode substituir o objeto vazio abaixo pelas suas credenciais reais do Firebase se for hospedar permanentemente.
+  const getFirebaseConfig = () => {
+    try {
+      return typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        apiKey: "",
+        authDomain: "",
+        projectId: "",
+        storageBucket: "",
+        messagingSenderId: "",
+        appId: ""
+      };
+    } catch (e) {
+      console.warn("Configuração Firebase não encontrada ou inválida.");
+      return null;
+    }
+  };
+
+  const config = getFirebaseConfig();
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'ghp-monitor-standalone';
+  
+  let app, auth, db;
+  if (config && config.apiKey) {
+    app = initializeApp(config);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  }
 
   // --- UI CONTROLLERS ---
   function notify(msg, type = 'success') {
     const b = document.getElementById('banner');
+    if (!b) return;
     b.style.display = 'block';
     b.style.background = type === 'error' ? "var(--danger)20" : "var(--success)20";
     b.style.color = type === 'error' ? "var(--danger)" : "var(--success)";
@@ -232,7 +256,6 @@
     const feed = document.getElementById('newsFeed');
     feed.innerHTML = '<p style="font-size: 11px; color: var(--accent-blue);">Lendo RSS ScienceDaily...</p>';
     
-    // Proxy AllOrigins para contornar CORS em ambiente de navegador
     const target = "https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml";
     const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
 
@@ -261,6 +284,11 @@
 
   // --- FIREBASE SYNC ---
   async function connectNode() {
+    if (!auth) {
+      document.getElementById('logList').innerHTML = '<p style="font-size:11px; color:var(--text-muted);">Firebase não configurado para ambiente externo.</p>';
+      return;
+    }
+
     try {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         await signInWithCustomToken(auth, __initial_auth_token);
@@ -268,18 +296,21 @@
         await signInAnonymously(auth);
       }
     } catch (err) {
-      notify("Erro de autenticação no nó", "error");
+      notify("Erro de conexão com o banco de dados", "error");
     }
   }
 
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      document.getElementById('nodeId').textContent = user.uid.substring(0, 8).toUpperCase();
-      syncCloudLogs();
-    }
-  });
+  if (auth) {
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        document.getElementById('nodeId').textContent = user.uid.substring(0, 8).toUpperCase();
+        syncCloudLogs();
+      }
+    });
+  }
 
   function syncCloudLogs() {
+    if (!db) return;
     const path = collection(db, 'artifacts', appId, 'public', 'data', 'ghp_logs');
     
     onSnapshot(path, (snap) => {
@@ -287,7 +318,6 @@
       const data = [];
       snap.forEach(d => data.push(d.data()));
       
-      // Ordenação por tempo decrescente
       data.sort((a, b) => new Date(b.ts) - new Date(a.ts));
 
       list.innerHTML = data.length ? '' : '<p style="font-size:11px;">Nenhum dado na rede.</p>';
@@ -303,15 +333,15 @@
       });
     }, (err) => {
       console.error(err);
-      document.getElementById('logList').innerHTML = '<p style="color:var(--danger);">Erro de permissão Firestore.</p>';
+      document.getElementById('logList').innerHTML = '<p style="color:var(--danger);">Permissão negada ou base inexistente.</p>';
     });
   }
 
   document.getElementById('submissionForm').onsubmit = async (e) => {
     e.preventDefault();
-    const btn = document.getElementById('submitBtn');
-    if (!auth.currentUser) return notify("Nó offline", "error");
+    if (!auth || !auth.currentUser) return notify("Sistema offline ou sem Firebase", "error");
 
+    const btn = document.getElementById('submitBtn');
     btn.disabled = true;
     try {
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'ghp_logs', crypto.randomUUID());
@@ -337,7 +367,8 @@
     loadExternalRadar();
     document.getElementById('refreshBtn').onclick = loadExternalRadar;
     setInterval(() => {
-      document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+      const clock = document.getElementById('clock');
+      if (clock) clock.textContent = new Date().toLocaleTimeString();
     }, 1000);
   };
 </script>
