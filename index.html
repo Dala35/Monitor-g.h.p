@@ -14,6 +14,7 @@
       --accent-blue: #38bdf8;
       --opportunity-gold: #f59e0b;
       --open-api-blue: #60a5fa;
+      --danger: #ef4444;
     }
 
     body {
@@ -26,7 +27,6 @@
       min-height: 100vh;
     }
 
-    /* Top Bar */
     .top-bar {
       background: rgba(2, 6, 23, 0.95);
       backdrop-filter: blur(12px);
@@ -48,7 +48,6 @@
 
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-    /* Layout */
     .main-terminal {
       display: grid;
       grid-template-columns: 350px 1fr 300px;
@@ -76,7 +75,6 @@
       justify-content: space-between;
     }
 
-    /* Feed List */
     #newsFeed {
       flex: 1;
       overflow-y: auto;
@@ -99,7 +97,6 @@
     .news-item p { font-size: 11px; color: var(--text-muted); margin: 0; }
     .news-tag { display: inline-block; font-size: 9px; padding: 2px 6px; background: #1e293b; border-radius: 3px; margin-top: 8px; color: var(--opportunity-gold); font-weight: bold; }
 
-    /* Forms & Buttons */
     input, select, textarea {
       background: #020617;
       border: 1px solid #1e293b;
@@ -129,6 +126,15 @@
       height: 250px;
       border-radius: 6px;
       border: 1px solid #1e293b;
+    }
+
+    #banner {
+      display: none;
+      padding: 8px;
+      font-size: 11px;
+      text-align: center;
+      border-radius: 4px;
+      margin-bottom: 10px;
     }
 
     @media (max-width: 1024px) {
@@ -164,6 +170,7 @@
 
   <section style="display: flex; flex-direction: column; gap: 15px;">
     <div class="card">
+      <div id="banner"></div>
       <div class="card-header">Registo de Co-Criação</div>
       <form id="submissionForm">
         <input type="email" id="email" placeholder="Identificador do Agente" required>
@@ -174,7 +181,7 @@
           <option value="OPORTUNIDADE">Oportunidade de Negócio</option>
         </select>
         <textarea id="desc" rows="3" placeholder="Notas sobre a integração ou oportunidade..."></textarea>
-        <button type="submit" class="btn btn-primary">PUBLICAR NA REDE</button>
+        <button type="submit" id="submitBtn" class="btn btn-primary">PUBLICAR NA REDE</button>
       </form>
     </div>
 
@@ -189,10 +196,10 @@
   </section>
 
   <aside class="card">
-    <div class="card-header">Logs de Atividade</div>
-    <div id="logList" style="font-size: 11px; flex: 1;"></div>
+    <div class="card-header">Logs de Atividade Pública</div>
+    <div id="logList" style="font-size: 11px; flex: 1; overflow-y: auto;"></div>
     <div style="font-size: 9px; color: var(--text-muted); padding-top: 10px; border-top: 1px solid #1e293b;">
-      NÓ LOCAL: <span id="nodeId">---</span>
+      NÓ LOCAL: <span id="nodeId">CONECTANDO...</span>
     </div>
   </aside>
 
@@ -200,105 +207,165 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+  // --- CONFIGURAÇÃO GLOBAL ---
   const firebaseConfig = JSON.parse(__firebase_config);
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'ghp-open-network';
 
-  // --- BUSCA EM APIS ABERTAS (Sem restrições) ---
-  // Utilizamos o Open Science e Repositórios que favorecem o Cross-Origin
+  // --- UI HELPERS ---
+  function showBanner(msg, isError = false) {
+    const b = document.getElementById('banner');
+    if(!b) return;
+    b.style.display = 'block';
+    b.style.background = isError ? "var(--danger)20" : "var(--primary-green)20";
+    b.style.color = isError ? "var(--danger)" : "var(--primary-green)";
+    b.textContent = msg;
+    setTimeout(() => b.style.display = 'none', 4000);
+  }
+
+  // --- BUSCA EXTERNA (APIs ABERTAS) ---
   async function fetchOpenData() {
     const feed = document.getElementById('newsFeed');
-    feed.innerHTML = '<p style="font-size: 11px; color: var(--accent-blue);">Acedendo a repositórios globais abertos...</p>';
+    feed.innerHTML = '<p style="font-size: 11px; color: var(--accent-blue);">Sincronizando com repositórios abertos...</p>';
     
-    // Lista de fontes que são conhecidas por políticas mais abertas de CORS ou via proxy simples
-    const sources = [
-      "https://api.allorigins.win/get?url=" + encodeURIComponent("https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml"),
-      "https://api.allorigins.win/get?url=" + encodeURIComponent("https://api.reliefweb.int/v1/reports?appname=ghp&limit=5")
-    ];
+    const target = "https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml";
+    const proxy = "https://api.allorigins.win/get?url=" + encodeURIComponent(target);
 
     try {
-      const response = await fetch(sources[0]);
+      const response = await fetch(proxy);
       const data = await response.json();
       const parser = new DOMParser();
       const xml = parser.parseFromString(data.contents, "text/xml");
       const items = xml.querySelectorAll("item");
 
       feed.innerHTML = '';
-      items.forEach(item => {
+      items.forEach((item, i) => {
+        if(i > 8) return;
         const div = document.createElement('div');
         div.className = 'news-item';
         div.innerHTML = `
           <h4>${item.querySelector("title").textContent}</h4>
           <p>${item.querySelector("description").textContent.substring(0, 100)}...</p>
-          <span class="news-tag">OPEN SCIENCE / IA</span>
+          <span class="news-tag">OPEN AI / SCIENCE</span>
         `;
         div.onclick = () => window.open(item.querySelector("link").textContent, '_blank');
         feed.appendChild(div);
       });
-      drawViz();
     } catch (e) {
-      feed.innerHTML = '<p style="color:var(--danger); font-size:11px;">A aguardar sinal de API aberta...</p>';
+      feed.innerHTML = '<p style="color:var(--text-muted); font-size:11px;">Rede externa ocupada. Tente re-sincronizar.</p>';
     }
   }
 
-  function drawViz() {
-    const g = document.getElementById('nodes');
-    g.innerHTML = '';
-    for(let i=0; i<12; i++) {
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      c.setAttribute("cx", Math.random() * 800);
-      c.setAttribute("cy", Math.random() * 400);
-      c.setAttribute("r", 3);
-      c.setAttribute("fill", "var(--open-api-blue)");
-      g.appendChild(c);
+  // --- FIREBASE: CORE LOGIC ---
+
+  let unsubscribeLogs = null;
+
+  async function initAuth() {
+    try {
+      // Regra 3: Prioridade para Token Customizado, senão Anónimo
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    } catch (err) {
+      console.error("Erro na autenticação:", err);
+      showBanner("FALHA NA IDENTIFICAÇÃO DO NÓ", true);
     }
   }
 
-  // --- FIREBASE INTEGRATION ---
+  // Escuta de estado de autenticação para ativar Firestore
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      document.getElementById('nodeId').textContent = user.uid.substring(0, 8);
-      
-      const col = collection(db, 'artifacts', appId, 'public', 'data', 'open_logs');
-      onSnapshot(col, (snap) => {
-        const list = document.getElementById('logList');
-        list.innerHTML = '';
-        snap.forEach(d => {
-          const item = d.data();
-          const div = document.createElement('div');
-          div.style.padding = "5px 0";
-          div.style.borderBottom = "1px solid #1e293b";
-          div.innerHTML = `<strong>${item.tipo}</strong> <br> <span style="color:var(--text-muted)">${new Date(item.ts).toLocaleTimeString()}</span>`;
-          list.appendChild(div);
-        });
-      });
+      document.getElementById('nodeId').textContent = user.uid.substring(0, 8).toUpperCase();
+      activateFirestoreListeners(user.uid);
+    } else {
+      if (unsubscribeLogs) unsubscribeLogs();
+      document.getElementById('nodeId').textContent = "DESCONECTADO";
     }
   });
 
+  function activateFirestoreListeners(userId) {
+    if (unsubscribeLogs) unsubscribeLogs();
+
+    // Regra 1: Caminho estrito
+    const publicDataPath = collection(db, 'artifacts', appId, 'public', 'data', 'open_logs');
+
+    // Regra 2: Sem queries complexas (orderBy/limit removidos da query)
+    unsubscribeLogs = onSnapshot(publicDataPath, (snap) => {
+      const list = document.getElementById('logList');
+      if (!list) return;
+      
+      const logs = [];
+      snap.forEach(d => logs.push(d.data()));
+      
+      // Ordenação local em memória
+      logs.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+
+      list.innerHTML = '';
+      logs.slice(0, 10).forEach(item => {
+        const div = document.createElement('div');
+        div.style.padding = "8px 0";
+        div.style.borderBottom = "1px solid #1e293b";
+        div.innerHTML = `
+          <div style="color:var(--opportunity-gold); font-weight:bold; font-size:10px;">${item.tipo}</div>
+          <div style="color:var(--text-main); font-size:11px; margin: 2px 0;">${item.desc || ''}</div>
+          <div style="color:var(--text-muted); font-size:9px;">${new Date(item.ts).toLocaleString()}</div>
+        `;
+        list.appendChild(div);
+      });
+    }, (error) => {
+      console.error("Erro no Snapshot:", error);
+      // Se der erro de permissão aqui, é provável que o appId ou o caminho não casem com as regras do servidor
+      showBanner("ACESSO NEGADO À REDE CLOUD", true);
+    });
+  }
+
   document.getElementById('submissionForm').onsubmit = async (e) => {
     e.preventDefault();
-    if (!auth.currentUser) return;
+    if (!auth.currentUser) {
+      showBanner("AGUARDANDO AUTENTICAÇÃO...", true);
+      return;
+    }
     
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'open_logs', crypto.randomUUID()), {
-      email: document.getElementById('email').value,
-      tipo: document.getElementById('tipo').value,
-      ts: new Date().toISOString()
-    });
-    alert("Dados integrados na rede aberta!");
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+
+    try {
+      const logId = crypto.randomUUID();
+      // Documento no caminho público
+      const newDoc = doc(db, 'artifacts', appId, 'public', 'data', 'open_logs', logId);
+      
+      await setDoc(newDoc, {
+        email: document.getElementById('email').value,
+        tipo: document.getElementById('tipo').value,
+        desc: document.getElementById('desc').value,
+        ts: new Date().toISOString(),
+        uid: auth.currentUser.uid
+      });
+
+      showBanner("DADOS SINCRONIZADOS COM A REDE");
+      e.target.reset();
+    } catch (err) {
+      console.error("Erro ao salvar:", err);
+      showBanner("ERRO AO PUBLICAR DADOS", true);
+    } finally {
+      btn.disabled = false;
+    }
   };
 
-  document.getElementById('refreshBtn').onclick = fetchOpenData;
-
+  // --- BOOT ---
   window.onload = () => {
-    signInAnonymously(auth);
+    initAuth();
     fetchOpenData();
     setInterval(() => {
-      document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+      const clock = document.getElementById('clock');
+      if(clock) clock.textContent = new Date().toLocaleTimeString();
     }, 1000);
   };
 </script>
