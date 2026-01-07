@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>G.H.P. MONITOR | Vigilância de Oportunidades</title>
+  <style>
+    :root {
+      --primary-green: #10b981;
+      --hover-green: #059669;
+      --bg-dark: #020617;
+      --card-bg: #0f172a;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --danger: #ef4444;
+      --anon-purple: #8b5cf6;
+      --opportunity-gold: #f59e0b;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Barra Superior */
+    .top-bar {
+      background: rgba(2, 6, 23, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #1e293b;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+
+    .logo-area { display: flex; align-items: center; gap: 10px; }
+    .logo-box { width: 30px; height: 30px; background: var(--primary-green); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #000; font-size: 14px; }
+    
+    .status-monitor { font-size: 10px; font-weight: 700; color: var(--primary-green); letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 6px; height: 6px; background: var(--primary-green); border-radius: 50%; box-shadow: 0 0 10px var(--primary-green); animation: pulse 1.5s infinite; }
+
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+    /* Layout Principal */
+    .main-terminal {
+      display: grid;
+      grid-template-columns: 350px 1fr 300px;
+      gap: 15px;
+      padding: 15px;
+      flex: 1;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.3s;
+    }
+    .card:hover { border-color: #334155; }
+
+    .card-header {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--accent-blue);
+      text-transform: uppercase;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Feed de Oportunidades */
+    #newsFeed {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 550px;
+      scrollbar-width: thin;
+    }
+
+    .news-item {
+      padding: 12px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 6px;
+      cursor: pointer;
+      animation: slideIn 0.5s ease;
+      border-left: 3px solid transparent;
+    }
+    .news-item:hover { background: rgba(255,255,255,0.05); border-left-color: var(--opportunity-gold); }
+
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+
+    .news-item h4 { font-size: 13px; margin: 0 0 5px 0; color: #fff; line-height: 1.3; }
+    .news-item p { font-size: 11px; color: var(--text-muted); margin: 0; line-height: 1.4; }
+    .news-tag { display: inline-block; font-size: 9px; padding: 2px 6px; background: #1e293b; border-radius: 3px; margin-top: 8px; color: var(--opportunity-gold); font-weight: bold; text-transform: uppercase; }
+
+    /* Estilos de Interface */
+    #statusBanner {
+      display: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    input, select, textarea {
+      background: #020617;
+      border: 1px solid #1e293b;
+      color: #fff;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+
+    .btn {
+      padding: 12px;
+      border-radius: 6px;
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 11px;
+      transition: 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-transform: uppercase;
+    }
+
+    .btn-primary { background: var(--primary-green); color: #000; }
+    .btn-secondary { background: transparent; border: 1px solid var(--accent-blue); color: var(--accent-blue); }
+    .btn:hover { filter: brightness(1.2); }
+
+    .data-viz {
+      background: #020617;
+      height: 250px;
+      border-radius: 6px;
+      border: 1px solid #1e293b;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .log-entry {
+      font-size: 11px;
+      padding: 8px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .source-label {
+        font-size: 10px;
+        color: var(--text-muted);
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    @media (max-width: 1024px) {
+      .main-terminal { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="logo-area">
+    <div class="logo-box">G</div>
+    <div>
+      <div style="font-weight: 800; font-size: 14px; letter-spacing: 1px;">G.H.P. MONITOR</div>
+      <div style="font-size: 9px; color: var(--text-muted);">RADAR DE OPORTUNIDADES & INOVAÇÃO</div>
+    </div>
+  </div>
+  <div class="status-monitor">
+    <div class="dot"></div>
+    SISTEMA DE CO-CRIAÇÃO: <span id="clock">00:00:00</span>
+  </div>
+</div>
+
+<main class="main-terminal">
+  
+  <!-- Coluna de Oportunidades -->
+  <aside class="card">
+    <div class="card-header">Vetor de Oportunidades <span style="color:var(--opportunity-gold)">● SCANNING</span></div>
+    <span class="source-label">Bolsas, IA, Concursos e Business</span>
+    <div id="newsFeed">
+      <p style="font-size: 11px; color: var(--text-muted);">Sincronizando com redes de inovação...</p>
+    </div>
+    <button id="refreshNewsBtn" class="btn btn-secondary" style="margin-top: 10px; font-size: 10px;">ATUALIZAR VETORES DE LUZ</button>
+  </aside>
+
+  <!-- Centro de Comando -->
+  <section style="display: flex; flex-direction: column; gap: 15px;">
+    <div class="card">
+      <div id="statusBanner"></div>
+      <div class="card-header">Relatório de Inovação de Campo</div>
+      
+      <form id="accessForm">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <input type="email" id="email" placeholder="Email do Co-criador" required>
+          <select id="perfil" required>
+            <option value="">Natureza da Oportunidade...</option>
+            <option value="Scholarship">Bolsa de Estudo (Academia)</option>
+            <option value="AI_Project">Projeto de IA / Concurso</option>
+            <option value="Business">Oportunidade de Negócio</option>
+            <option value="Innovation">Inovação Disruptiva</option>
+          </select>
+        </div>
+        
+        <textarea id="obs" rows="3" placeholder="Descreva os detalhes da oportunidade capturada ou submeta o seu perfil para a rede..."></textarea>
+
+        <div style="display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+          <input type="checkbox" id="anonMode" style="width: 18px; height: 18px; margin:0;">
+          <div style="font-size: 11px;">
+            <strong>PROTOCOLO DE PRIVACIDADE</strong><br>
+            <span style="color: var(--text-muted);">Manter registo apenas local no dispositivo.</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <button type="submit" id="submitBtn" class="btn btn-primary">REGISTAR NA REDE</button>
+          <button type="button" id="exportReportBtn" class="btn btn-secondary">EXPORTAR DOSSIÊ (.JSON)</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Fluxo de Dados: Inovação Global</div>
+      <div class="data-viz" id="mapContainer">
+        <svg viewBox="0 0 800 400" width="100%" height="100%" style="opacity: 0.3;">
+          <rect width="800" height="400" fill="#020617"/>
+          <path d="M50,300 L150,250 L250,280 L350,150 L450,200 L550,100 L750,50" stroke="var(--primary-green)" fill="none" stroke-width="1.5" stroke-dasharray="5,5"/>
+          <g id="mapPoints"></g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- Histórico e Status -->
+  <aside class="card">
+    <div class="card-header">Últimas Interações</div>
+    <div id="historyList" style="font-size: 11px; flex: 1; overflow-y: auto;"></div>
+    <div style="margin-top: 15px; font-size: 9px; color: var(--text-muted); border-top: 1px solid #1e293b; padding-top: 10px;">
+      ESTAÇÃO AFROKÓDICA ID: <span id="deviceIdDisplay">---</span>
+    </div>
+  </aside>
+
+</main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+  // --- CONFIGURAÇÃO FIREBASE ---
+  let firebaseConfig;
+  try {
+    firebaseConfig = JSON.parse(__firebase_config);
+  } catch(e) {
+    firebaseConfig = {
+      apiKey: "SUA_API_KEY",
+      authDomain: "SEU_PROJETO.firebaseapp.com",
+      projectId: "SEU_PROJETO",
+      storageBucket: "SEU_PROJETO.appspot.com",
+      messagingSenderId: "ID",
+      appId: "APP_ID"
+    };
+  }
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'ghp-opportunity-monitor';
+
+  // --- Lógica de Captura de Oportunidades ---
+
+  async function fetchOpportunities() {
+    const feedContainer = document.getElementById('newsFeed');
+    feedContainer.innerHTML = '<p style="font-size: 11px; color: var(--accent-blue);">Filtrando ondas de inovação...</p>';
+    
+    // Lista de fontes variadas para cobrir IA, Bolsas e Negócios
+    const targetUrls = [
+      "https://search.un.org/rss?query=scholarship+ai+innovation&lang=en",
+      "https://www.technologyreview.com/feed/",
+      "https://scitechdaily.com/feed/"
+    ];
+
+    const proxies = [
+      "https://api.allorigins.win/get?url=",
+      "https://corsproxy.io/?"
+    ];
+    
+    let allItems = [];
+
+    // Tentamos buscar de fontes diferentes para compor um feed rico
+    for (let target of targetUrls) {
+      for (let proxy of proxies) {
+        try {
+          const response = await fetch(`${proxy}${encodeURIComponent(target)}`);
+          if (!response.ok) continue;
+          
+          const data = await response.json();
+          const content = data.contents || data;
+          
+          const parser = new DOMParser();
+          const xml = parser.parseFromString(content, "text/xml");
+          const entries = xml.querySelectorAll("item");
+
+          entries.forEach(item => {
+            allItems.push({
+              title: item.querySelector("title")?.textContent,
+              link: item.querySelector("link")?.textContent,
+              desc: item.querySelector("description")?.textContent || "",
+              date: new Date(item.querySelector("pubDate")?.textContent || Date.now())
+            });
+          });
+          if (entries.length > 0) break; // Se o proxy funcionou para esta fonte, pula para a próxima fonte
+        } catch (err) { continue; }
+      }
+    }
+
+    if (allItems.length > 0) {
+      // Ordenar por data mais recente
+      allItems.sort((a, b) => b.date - a.date);
+      
+      feedContainer.innerHTML = '';
+      allItems.slice(0, 15).forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'news-item';
+        
+        // Identificação visual do tipo de oportunidade baseada em palavras-chave
+        let tag = "INOVAÇÃO";
+        if (item.title.toLowerCase().includes('scholarship')) tag = "BOLSA DE ESTUDO";
+        if (item.title.toLowerCase().includes('ai') || item.title.toLowerCase().includes('intelligence')) tag = "INTELIGÊNCIA ARTIFICIAL";
+        if (item.title.toLowerCase().includes('startup') || item.title.toLowerCase().includes('business')) tag = "NEGÓCIOS";
+
+        div.innerHTML = `
+          <h4>${item.title}</h4>
+          <p>${item.desc.replace(/<[^>]*>?/gm, '').substring(0, 120)}...</p>
+          <span class="news-tag">${tag}</span>
+        `;
+        div.addEventListener('click', () => window.open(item.link, '_blank'));
+        feedContainer.appendChild(div);
+      });
+      updateVisualFeed();
+    } else {
+      feedContainer.innerHTML = '<p style="font-size:11px; color:var(--danger);">A rede de vigilância não conseguiu captar sinais. Tente novamente em instantes.</p>';
+    }
+  }
+
+  function exportLocalReport() {
+    const data = {
+      app: "G.H.P. MONITOR - OPPORTUNITY DOSSIER",
+      timestamp: new Date().toISOString(),
+      agent: document.getElementById('email').value || "ANON_COCREATOR",
+      category: document.getElementById('perfil').value,
+      notes: document.getElementById('obs').value,
+      system_id: auth.currentUser?.uid
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `GHP_OPPORTUNITY_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showBanner("DOSSIÊ DE OPORTUNIDADE EXPORTADO", "var(--opportunity-gold)");
+  }
+
+  // --- UI & Firebase ---
+
+  function showBanner(msg, color) {
+    const b = document.getElementById('statusBanner');
+    b.style.display = 'block';
+    b.style.backgroundColor = color + "20";
+    b.style.color = color;
+    b.style.border = `1px solid ${color}`;
+    b.textContent = msg;
+    setTimeout(() => b.style.display = 'none', 5000);
+  }
+
+  function updateClock() {
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString() + " GMT";
+  }
+
+  function updateVisualFeed() {
+    const g = document.getElementById('mapPoints');
+    if(!g) return;
+    g.innerHTML = '';
+    for(let i=0; i<20; i++){
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", Math.random() * 800);
+      circle.setAttribute("cy", Math.random() * 400);
+      circle.setAttribute("r", Math.random() * 3 + 1);
+      circle.setAttribute("fill", i % 3 === 0 ? "var(--opportunity-gold)" : "var(--accent-blue)");
+      
+      const anim = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+      anim.setAttribute("attributeName", "r");
+      anim.setAttribute("values", "1;4;1");
+      anim.setAttribute("dur", (Math.random()*3 + 2) + "s");
+      anim.setAttribute("repeatCount", "indefinite");
+      circle.appendChild(anim);
+      
+      g.appendChild(circle);
+    }
+  }
+
+  function setupLogListener(userId) {
+    const col = collection(db, 'artifacts', appId, 'users', userId, 'opportunity_logs');
+    onSnapshot(col, (snap) => {
+      const logs = [];
+      snap.forEach(d => logs.push(d.data()));
+      logs.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      const list = document.getElementById('historyList');
+      if(!list) return;
+      list.innerHTML = '';
+      logs.slice(0, 10).forEach(log => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = `
+          <span style="color:var(--opportunity-gold)">${log.perfil}</span>
+          <span style="color:var(--text-muted)">${new Date(log.timestamp).toLocaleTimeString()}</span>
+        `;
+        list.appendChild(div);
+      });
+    });
+  }
+
+  async function boot() {
+    document.getElementById('refreshNewsBtn').addEventListener('click', fetchOpportunities);
+    document.getElementById('exportReportBtn').addEventListener('click', exportLocalReport);
+    
+    document.getElementById('accessForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const isAnon = document.getElementById('anonMode').checked;
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+
+      try {
+        if(!isAnon && auth.currentUser) {
+          const docRef = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'opportunity_logs', crypto.randomUUID());
+          await setDoc(docRef, {
+            email: document.getElementById('email').value,
+            perfil: document.getElementById('perfil').value,
+            timestamp: new Date().toISOString()
+          });
+          showBanner("OPORTUNIDADE REGISTADA NA REDE AFROKÓDICA", "var(--primary-green)");
+        } else {
+          showBanner("MODO PRIVADO: REGISTO APENAS LOCAL", "var(--anon-purple)");
+        }
+      } catch (err) {
+        showBanner("ERRO DE CONEXÃO CLOUD", "var(--danger)");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    try {
+      await signInAnonymously(auth);
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          document.getElementById('deviceIdDisplay').textContent = user.uid.substring(0, 15).toUpperCase();
+          setupLogListener(user.uid);
+        }
+      });
+      fetchOpportunities();
+      setInterval(updateClock, 1000);
+    } catch (e) { console.error("Boot failure:", e); }
+  }
+
+  window.addEventListener('load', boot);
+</script>
+
+</body>
+</html>
