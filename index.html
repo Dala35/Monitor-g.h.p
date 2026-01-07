@@ -73,6 +73,7 @@
       margin-bottom: 12px;
       display: flex;
       justify-content: space-between;
+      align-items: center;
     }
 
     #newsFeed {
@@ -118,10 +119,15 @@
       text-transform: uppercase;
       width: 100%;
       transition: opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-primary { background: var(--open-api-blue); color: #000; }
     .btn-secondary { background: transparent; border: 1px solid var(--open-api-blue); color: var(--open-api-blue); margin-top: 10px; }
+    .btn-download { background: var(--success); color: #000; margin-top: 10px; }
 
     #banner {
       display: none;
@@ -142,6 +148,16 @@
     .log-entry {
       padding: 8px 0;
       border-bottom: 1px solid #1e293b;
+      position: relative;
+    }
+
+    .badge {
+      font-size: 8px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--open-api-blue);
+      color: #000;
+      margin-left: 5px;
     }
 
     @media (max-width: 1024px) {
@@ -156,7 +172,7 @@
     <div class="logo-box">G</div>
     <div>
       <div style="font-weight: 800; font-size: 14px; letter-spacing: 1px;">G.H.P. MONITOR</div>
-      <div style="font-size: 9px; color: var(--text-muted);">LOCAL DATA STORAGE</div>
+      <div style="font-size: 9px; color: var(--text-muted);">GLOBAL HEALTH PLATFORM</div>
     </div>
   </div>
   <div class="status-monitor">
@@ -168,94 +184,101 @@
 <main class="main-terminal">
   
   <aside class="card">
-    <div class="card-header">Radar de Conhecimento</div>
-    <div id="newsFeed">
-      <p style="font-size: 11px; color: var(--text-muted);">Sincronizando fontes externas...</p>
+    <div class="card-header">
+      Radar Multiversal
+      <span id="sourceIndicator" class="badge">IA & TECH</span>
     </div>
-    <button id="refreshBtn" class="btn btn-secondary">Atualizar Fontes</button>
+    <div id="newsFeed">
+      <p style="font-size: 11px; color: var(--text-muted);">Sincronizando fontes globais...</p>
+    </div>
+    <button id="refreshBtn" class="btn btn-secondary">Alternar Fonte de Dados</button>
   </aside>
 
   <section style="display: flex; flex-direction: column; gap: 15px;">
     <div class="card">
       <div id="banner"></div>
-      <div class="card-header">Registo de Dados (No Dispositivo)</div>
+      <div class="card-header">Registo Sincronizado</div>
       <form id="submissionForm">
-        <input type="email" id="email" placeholder="Email do Agente" required>
+        <input type="email" id="email" placeholder="ID do Agente / Email" required>
         <select id="tipo" required>
-          <option value="">Selecione o tipo de dado...</option>
-          <option value="API_LIVRE">API Aberta</option>
-          <option value="ESTUDO_IA">Estudo de IA</option>
-          <option value="ESTRATEGIA">Estratégia de Mercado</option>
+          <option value="">Selecione a Categoria...</option>
+          <option value="ESTRATÉGIA">Plano de Estratégia</option>
+          <option value="SAÚDE_GLOBAL">Saúde Global & IA</option>
+          <option value="TECNOLOGIA">Inovação Tecnológica</option>
+          <option value="MERCADO">Análise de Mercado</option>
         </select>
-        <textarea id="desc" rows="4" placeholder="Descrição técnica ou notas da oportunidade..." required></textarea>
-        <button type="submit" id="submitBtn" class="btn btn-primary">Guardar no Dispositivo</button>
+        <textarea id="desc" rows="4" placeholder="Insira o conteúdo do relatório ou dados técnicos..." required></textarea>
+        <button type="submit" id="submitBtn" class="btn btn-primary">Guardar Localmente</button>
+        <button type="button" id="downloadAllBtn" class="btn btn-download">Descarregar Relatório Completo (.doc)</button>
       </form>
     </div>
   </section>
 
   <aside class="card">
-    <div class="card-header">Fluxo Local (Offline-Ready)</div>
+    <div class="card-header">Arquivo Local</div>
     <div id="logList">
-      <p style="font-size: 11px; color: var(--text-muted);">A carregar registos locais...</p>
+      <p style="font-size: 11px; color: var(--text-muted);">A carregar base interna...</p>
     </div>
     <div style="font-size: 9px; color: var(--text-muted); padding-top: 10px; border-top: 1px solid #1e293b; margin-top: auto;">
-      ID NÓ LOCAL: <span id="nodeId">GERANDO...</span>
+      SISTEMA: SOBERANO | NÓ: <span id="nodeId">OFFLINE</span>
     </div>
   </aside>
 
 </main>
 
 <script type="module">
-  // --- SISTEMA DE ARMAZENAMENTO LOCAL (IndexedDB) ---
-  const DB_NAME = 'GHP_Local_DB';
-  const STORE_NAME = 'local_logs';
+  // --- CONFIGURAÇÃO DE FONTES DINÂMICAS ---
+  const SOURCES = [
+    { name: "IA & COMPUTATION", url: "https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml" },
+    { name: "HEALTH & BIOTECH", url: "https://www.sciencedaily.com/rss/health_medicine/biotechnology.xml" },
+    { name: "SPACE & ENERGY", url: "https://www.sciencedaily.com/rss/matter_energy/energy_technology.xml" }
+  ];
+  let currentSourceIndex = 0;
+
+  // --- BASE DE DADOS LOCAL (IndexedDB) ---
+  const DB_NAME = 'GHP_Sovereign_DB';
+  const STORE_NAME = 'sovereign_logs';
   let db;
 
   function initDB() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 1);
-      
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
+      const request = indexedDB.open(DB_NAME, 2);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME, { keyPath: 'id' });
         }
       };
-
-      request.onsuccess = (event) => {
-        db = event.target.result;
-        resolve(db);
-      };
-
-      request.onerror = (event) => reject(event.target.error);
+      request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+      request.onerror = (e) => reject(e.target.error);
     });
   }
 
-  // --- UI CONTROLLERS ---
+  // --- UI & NOTIFICAÇÕES ---
   function notify(msg, type = 'success') {
     const b = document.getElementById('banner');
-    if (!b) return;
     b.style.display = 'block';
-    b.style.background = type === 'error' ? "var(--danger)20" : "var(--success)20";
+    b.style.background = type === 'error' ? "rgba(239, 68, 68, 0.2)" : "rgba(16, 185, 129, 0.2)";
     b.style.color = type === 'error' ? "var(--danger)" : "var(--success)";
     b.textContent = msg;
-    setTimeout(() => b.style.display = 'none', 5000);
+    setTimeout(() => b.style.display = 'none', 4000);
   }
 
-  // --- BUSCA REAL DE DADOS (RSS Open Science) ---
-  async function loadExternalRadar() {
+  // --- RADAR DE DADOS MULTI-FONTE ---
+  async function loadRadar() {
     const feed = document.getElementById('newsFeed');
-    feed.innerHTML = '<p style="font-size: 11px; color: var(--accent-blue);">Lendo RSS ScienceDaily...</p>';
+    const indicator = document.getElementById('sourceIndicator');
+    const source = SOURCES[currentSourceIndex];
     
-    const target = "https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml";
-    const url = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
-
+    indicator.textContent = source.name;
+    feed.innerHTML = '<p style="font-size: 11px; color: var(--accent-blue);">Contactando rede externa...</p>';
+    
     try {
-      const res = await fetch(url);
+      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(source.url)}`;
+      const res = await fetch(proxy);
       const data = await res.json();
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(data.contents, "text/xml");
-      const items = Array.from(xml.querySelectorAll("item")).slice(0, 8);
+      const xml = new DOMParser().parseFromString(data.contents, "text/xml");
+      const items = Array.from(xml.querySelectorAll("item")).slice(0, 10);
 
       feed.innerHTML = '';
       items.forEach(item => {
@@ -269,53 +292,94 @@
         feed.appendChild(div);
       });
     } catch (e) {
-      feed.innerHTML = '<p style="font-size: 11px; color: var(--danger);">Falha ao carregar radar externo.</p>';
+      feed.innerHTML = '<p style="font-size: 11px; color: var(--danger);">Erro na ponte de dados.</p>';
     }
   }
 
-  // --- LOGIC: SAVE & RENDER ---
+  // --- DOWNLOAD FUNCIONAL (.doc / PDF interpretável) ---
+  function downloadAsDoc(data) {
+    if (!data || data.length === 0) return notify("Nenhum dado para exportar", "error");
+
+    let content = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>Relatório G.H.P MONITOR</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; }
+        .header { text-align: center; border-bottom: 2px solid #333; margin-bottom: 20px; }
+        .log-box { border: 1px solid #ccc; padding: 10px; margin-bottom: 15px; border-radius: 5px; }
+        .tag { font-weight: bold; color: #0056b3; }
+      </style>
+      </head>
+      <body>
+        <div class='header'>
+          <h1>RELATÓRIO DE DADOS - G.H.P MONITOR</h1>
+          <p>Exportado em: ${new Date().toLocaleString()}</p>
+        </div>
+    `;
+
+    data.forEach(log => {
+      content += `
+        <div class='log-box'>
+          <p><span class='tag'>CATEGORIA:</span> ${log.tipo}</p>
+          <p><span class='tag'>DATA:</span> ${new Date(log.ts).toLocaleString()}</p>
+          <p><span class='tag'>AGENTE:</span> ${log.email}</p>
+          <p><span class='tag'>CONTEÚDO:</span><br>${log.desc.replace(/\n/g, '<br>')}</p>
+        </div>
+      `;
+    });
+
+    content += `</body></html>`;
+
+    const blob = new Blob([content], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Relatorio_GHP_${new Date().getTime()}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // --- GESTÃO DE DADOS ---
   async function saveLog(logData) {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAME], 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.add(logData);
-      
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    await tx.objectStore(STORE_NAME).add(logData);
+    return new Promise((res) => tx.oncomplete = res);
+  }
+
+  async function fetchAllLogs() {
+    return new Promise((res) => {
+      const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll();
+      request.onsuccess = () => res(request.result);
     });
   }
 
-  async function renderLogs() {
+  async function updateUI() {
     const list = document.getElementById('logList');
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.getAll();
+    const logs = await fetchAllLogs();
+    logs.sort((a, b) => new Date(b.ts) - new Date(a.ts));
 
-    request.onsuccess = () => {
-      const data = request.result;
-      data.sort((a, b) => new Date(b.ts) - new Date(a.ts));
-
-      list.innerHTML = data.length ? '' : '<p style="font-size:11px;">Nenhum dado guardado no dispositivo.</p>';
-      data.slice(0, 20).forEach(log => {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        div.innerHTML = `
-          <div style="color:var(--opportunity-gold); font-weight:bold;">${log.tipo}</div>
-          <div style="margin: 3px 0; opacity: 0.9;">${log.desc}</div>
-          <div style="font-size:9px; color:var(--text-muted);">${new Date(log.ts).toLocaleString()}</div>
-        `;
-        list.appendChild(div);
-      });
-    };
+    list.innerHTML = logs.length ? '' : '<p style="font-size:11px;">Sem registos no arquivo físico.</p>';
+    logs.slice(0, 30).forEach(log => {
+      const div = document.createElement('div');
+      div.className = 'log-entry';
+      div.innerHTML = `
+        <div style="color:var(--opportunity-gold); font-weight:bold;">${log.tipo}</div>
+        <div style="margin: 3px 0; opacity: 0.9;">${log.desc.substring(0, 80)}...</div>
+        <div style="font-size:9px; color:var(--text-muted);">${new Date(log.ts).toLocaleString()}</div>
+      `;
+      list.appendChild(div);
+    });
   }
 
-  // --- EVENT HANDLERS ---
+  // --- HANDLERS ---
   document.getElementById('submissionForm').onsubmit = async (e) => {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
 
-    const logData = {
+    const entry = {
       id: crypto.randomUUID(),
       email: document.getElementById('email').value,
       tipo: document.getElementById('tipo').value,
@@ -324,34 +388,41 @@
     };
 
     try {
-      await saveLog(logData);
-      notify("Dados guardados localmente com sucesso!");
+      await saveLog(entry);
+      notify("Registo consolidado no dispositivo.");
       e.target.reset();
-      renderLogs();
+      updateUI();
     } catch (err) {
-      notify("Erro ao guardar no dispositivo", "error");
+      notify("Falha na gravação local.", "error");
     } finally {
       btn.disabled = false;
     }
   };
 
-  // --- INITIALIZE ---
+  document.getElementById('downloadAllBtn').onclick = async () => {
+    const logs = await fetchAllLogs();
+    downloadAsDoc(logs);
+  };
+
+  document.getElementById('refreshBtn').onclick = () => {
+    currentSourceIndex = (currentSourceIndex + 1) % SOURCES.length;
+    loadRadar();
+  };
+
+  // --- START ---
   window.onload = async () => {
     try {
       await initDB();
-      renderLogs();
-      document.getElementById('nodeId').textContent = "LOCAL-" + Math.random().toString(36).substr(2, 6).toUpperCase();
-    } catch (e) {
-      console.error("IndexedDB falhou", e);
-    }
-
-    loadExternalRadar();
-    document.getElementById('refreshBtn').onclick = loadExternalRadar;
+      updateUI();
+      document.getElementById('nodeId').textContent = "DISP-" + Math.random().toString(36).substr(2, 5).toUpperCase();
+    } catch (e) {}
+    
+    loadRadar();
     setInterval(() => {
-      const clock = document.getElementById('clock');
-      if (clock) clock.textContent = new Date().toLocaleTimeString();
+      document.getElementById('clock').textContent = new Date().toLocaleTimeString();
     }, 1000);
   };
 </script>
 </body>
 </html>
+     
